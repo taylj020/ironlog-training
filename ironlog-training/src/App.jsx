@@ -145,9 +145,9 @@ const Spinner = ({ size = 18 }) => (
 // ── NumInput (tap-friendly) ───────────────────────────────────────────────────
 const NumInput = ({ value, onChange, placeholder, style = {} }) => (
   <input
-    type="number"
+    type="text"
     inputMode="decimal"
-    value={value}
+    value={value === 0 || value === "0" ? "" : (value ?? "")}
     placeholder={placeholder}
     onChange={e => onChange(e.target.value)}
     style={{ textAlign: "center", fontSize: 15, padding: "8px 4px", minWidth: 0, ...style }}
@@ -164,18 +164,6 @@ function SessionTab({ programme, profile, sessions, onSaveSession }) {
   const [tweakResult, setTweakResult] = useState(null);
   const [tweakLoading, setTweakLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [bodyWeight, setBodyWeight] = useState(() => {
-    const bw = load("bw_log", {});
-    return bw[today()] || "";
-  });
-
-  const saveBodyWeight = (val) => {
-    setBodyWeight(val);
-    const bw = load("bw_log", {});
-    bw[today()] = val;
-    save("bw_log", bw);
-  };
-
   const startSession = async (template) => {
     if (!profile.apiKey) {
       // start without AI
@@ -206,12 +194,17 @@ function SessionTab({ programme, profile, sessions, onSaveSession }) {
     aiAdjusted: false,
     exercises: template.exercises.map((ex, idx) => {
       const ai = aiTargets?.find(a => a.exerciseIdx === idx);
+      const numSets = ai?.sets || ex.sets || 3;
+      // per-set reps: use ai override, or per-set array, or fallback to single value
+      const setTargetReps = ex.setTargetReps && ex.setTargetReps.length === numSets
+        ? ex.setTargetReps
+        : Array.from({ length: numSets }, (_, si) => ai?.reps || ex.setTargetReps?.[si] || ex.targetReps || "");
       return {
         ...ex,
-        sets: (ai?.sets || ex.sets),
-        targetReps: ai?.reps || ex.targetReps,
+        sets: numSets,
+        setTargetReps,
         targetWeight: ai?.weight || ex.startingWeight || 0,
-        logs: Array.from({ length: ai?.sets || ex.sets }, () => ({ kg: "", reps: "", rpe: "", done: false })),
+        logs: Array.from({ length: numSets }, () => ({ kg: "", reps: "", rpe: "", done: false })),
         aiNote: ai ? "AI adjusted targets" : null,
       };
     }),
@@ -287,15 +280,6 @@ function SessionTab({ programme, profile, sessions, onSaveSession }) {
           {generating && <Spinner />}
         </div>
 
-        {/* Body weight */}
-        <Card style={{ marginBottom: 16 }}>
-          <Label>Today's Body Weight</Label>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <NumInput value={bodyWeight} onChange={saveBodyWeight} placeholder="0.0" style={{ flex: 1, fontSize: 22, fontFamily: "'Bebas Neue'", color: ACCENT }} />
-            <span style={{ color: MUTED, fontSize: 13 }}>kg</span>
-          </div>
-        </Card>
-
         {/* Pick session */}
         <Label>Select Today's Session</Label>
         {programme.length === 0 ? (
@@ -339,33 +323,47 @@ function SessionTab({ programme, profile, sessions, onSaveSession }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
               <div>
                 <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 0.5 }}>{ex.name}</div>
-                <div style={{ fontSize: 11, color: MUTED }}>Target: {ex.sets}×{ex.targetReps} @ {ex.targetWeight}kg</div>
+                <div style={{ fontSize: 11, color: MUTED }}>
+                  {ex.sets} sets @ {ex.targetWeight}kg
+                  {ex.setTargetReps?.every(r => r === ex.setTargetReps[0]) && ex.setTargetReps[0]
+                    ? ` · ${ex.setTargetReps[0]} reps`
+                    : ""}
+                </div>
                 {ex.aiNote && <div style={{ fontSize: 10, color: ACCENT, marginTop: 2 }}>⚡ {ex.aiNote}</div>}
               </div>
               {allDone && <Icon name="check" color={GREEN} />}
             </div>
 
             {/* Set header */}
-            <div style={{ display: "grid", gridTemplateColumns: "24px 1fr 1fr 1fr 32px", gap: 4, marginBottom: 4 }} className="set-row">
+            <div style={{ display: "grid", gridTemplateColumns: "20px 1fr 1fr 1fr 32px", gap: 6, marginBottom: 6, alignItems: "center" }}>
               {["#", "KG", "REPS", "RPE", "✓"].map(h => (
                 <div key={h} style={{ fontSize: 9, color: MUTED, textAlign: "center", letterSpacing: 1 }}>{h}</div>
               ))}
             </div>
 
-            {ex.logs.map((log, setIdx) => (
-              <div key={setIdx} style={{ display: "grid", gridTemplateColumns: "24px 1fr 1fr 1fr 32px", gap: 4, marginBottom: 4, alignItems: "center" }} className="set-row">
-                <div style={{ fontSize: 12, color: MUTED, textAlign: "center" }}>{setIdx + 1}</div>
-                <NumInput value={log.kg} onChange={v => updateLog(exIdx, setIdx, "kg", v)} placeholder={String(ex.targetWeight || "")} />
-                <NumInput value={log.reps} onChange={v => updateLog(exIdx, setIdx, "reps", v)} placeholder={ex.targetReps} />
-                <NumInput value={log.rpe} onChange={v => updateLog(exIdx, setIdx, "rpe", v)} placeholder="7" />
-                <button
-                  onClick={() => toggleSet(exIdx, setIdx)}
-                  style={{ width: 28, height: 28, borderRadius: 6, border: `2px solid ${log.done ? GREEN : BORDER}`, background: log.done ? GREEN + "22" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
-                >
-                  {log.done && <Icon name="check" size={13} color={GREEN} />}
-                </button>
-              </div>
-            ))}
+            {ex.logs.map((log, setIdx) => {
+              const targetReps = ex.setTargetReps?.[setIdx] || "";
+              return (
+                <div key={setIdx} style={{ display: "grid", gridTemplateColumns: "20px 1fr 1fr 1fr 32px", gap: 6, marginBottom: 6, alignItems: "center" }}>
+                  <div style={{ fontSize: 11, color: log.done ? ACCENT : MUTED, textAlign: "center", fontWeight: 500 }}>{setIdx + 1}</div>
+                  <NumInput value={log.kg} onChange={v => updateLog(exIdx, setIdx, "kg", v)} placeholder={String(ex.targetWeight || "")} />
+                  <input
+                    inputMode="text"
+                    value={log.reps}
+                    placeholder={targetReps || "—"}
+                    onChange={e => updateLog(exIdx, setIdx, "reps", e.target.value)}
+                    style={{ textAlign: "center", fontSize: 13, padding: "8px 4px", minWidth: 0, background: SURFACE2, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none", width: "100%", fontFamily: "'DM Mono', monospace" }}
+                  />
+                  <NumInput value={log.rpe} onChange={v => updateLog(exIdx, setIdx, "rpe", v)} placeholder="7" />
+                  <button
+                    onClick={() => toggleSet(exIdx, setIdx)}
+                    style={{ width: 32, height: 32, borderRadius: 6, border: `2px solid ${log.done ? GREEN : BORDER}`, background: log.done ? GREEN + "22" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+                  >
+                    {log.done && <Icon name="check" size={14} color={GREEN} />}
+                  </button>
+                </div>
+              );
+            })}
 
             <Divider />
             <Btn onClick={() => openTweak(exIdx)} variant="ghost" size="sm" style={{ width: "100%", color: ACCENT, borderColor: ACCENT + "44", fontSize: 11 }}>
@@ -682,15 +680,18 @@ function HistoryTab({ sessions, profile, onUpdateSession }) {
                 {sess.exercises.map((ex, i) => (
                   <div key={i} style={{ marginBottom: 10 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>{ex.name}</div>
-                    {ex.logs.map((log, si) => (
-                      <div key={si} style={{ display: "flex", gap: 10, fontSize: 11, color: log.done ? TEXT : MUTED, marginBottom: 2 }}>
-                        <span style={{ color: MUTED }}>#{si + 1}</span>
-                        <span>{log.kg || "--"} kg</span>
-                        <span>× {log.reps || "--"}</span>
-                        {log.rpe && <span style={{ color: MUTED }}>RPE {log.rpe}</span>}
-                        {log.done && <span style={{ color: GREEN }}>✓</span>}
-                      </div>
-                    ))}
+                    {ex.logs.map((log, si) => {
+                      const targetReps = ex.setTargetReps?.[si] || ex.targetReps || "";
+                      return (
+                        <div key={si} style={{ display: "flex", gap: 10, fontSize: 11, color: log.done ? TEXT : MUTED, marginBottom: 2 }}>
+                          <span style={{ color: MUTED }}>#{si + 1}</span>
+                          <span>{log.kg || "--"} kg</span>
+                          <span>× {log.reps || "--"}{targetReps && log.reps !== targetReps ? <span style={{ color: MUTED }}> / {targetReps} tgt</span> : ""}</span>
+                          {log.rpe && <span style={{ color: MUTED }}>RPE {log.rpe}</span>}
+                          {log.done && <span style={{ color: GREEN }}>✓</span>}
+                        </div>
+                      );
+                    })}
                   </div>
                 ))}
 
@@ -844,11 +845,39 @@ function ProfileTab({ profile, setProfile, programme, setProgramme }) {
 // ── Session Editor ────────────────────────────────────────────────────────────
 function SessionEditor({ sess, onSave, onCancel }) {
   const [name, setName] = useState(sess.name);
-  const [exercises, setExercises] = useState(sess.exercises || []);
+  const [exercises, setExercises] = useState(() =>
+    (sess.exercises || []).map(ex => ({
+      ...ex,
+      // migrate old single-targetReps to per-set array
+      setTargetReps: ex.setTargetReps || Array.from({ length: ex.sets || 3 }, () => ex.targetReps || ""),
+    }))
+  );
 
-  const addEx = () => setExercises(ex => [...ex, { id: uid(), name: "", sets: 3, targetReps: "8-10", startingWeight: 0 }]);
+  const addEx = () => setExercises(ex => [...ex, { id: uid(), name: "", sets: 3, startingWeight: 0, setTargetReps: ["", "", ""] }]);
+
   const updateEx = (idx, field, val) => setExercises(ex => ex.map((e, i) => i === idx ? { ...e, [field]: val } : e));
+
+  const updateSetCount = (idx, newCount) => {
+    const n = Math.max(1, parseInt(newCount) || 1);
+    setExercises(ex => ex.map((e, i) => {
+      if (i !== idx) return e;
+      const current = e.setTargetReps || [];
+      const updated = Array.from({ length: n }, (_, si) => current[si] ?? "");
+      return { ...e, sets: n, setTargetReps: updated };
+    }));
+  };
+
+  const updateSetReps = (exIdx, setIdx, val) => {
+    setExercises(ex => ex.map((e, i) => {
+      if (i !== exIdx) return e;
+      const updated = [...(e.setTargetReps || [])];
+      updated[setIdx] = val;
+      return { ...e, setTargetReps: updated };
+    }));
+  };
+
   const removeEx = (idx) => setExercises(ex => ex.filter((_, i) => i !== idx));
+
   const moveEx = (idx, dir) => {
     const next = [...exercises];
     const swap = idx + dir;
@@ -877,6 +906,7 @@ function SessionEditor({ sess, onSave, onCancel }) {
 
       {exercises.map((ex, idx) => (
         <Card key={ex.id || idx} style={{ marginBottom: 10 }}>
+          {/* Exercise header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <span style={{ color: MUTED, fontSize: 12 }}>Exercise {idx + 1}</span>
             <div style={{ display: "flex", gap: 6 }}>
@@ -885,20 +915,36 @@ function SessionEditor({ sess, onSave, onCancel }) {
               <button onClick={() => removeEx(idx)} style={{ background: "none", border: "none", color: RED, cursor: "pointer" }}><Icon name="x" size={14} /></button>
             </div>
           </div>
-          <input value={ex.name} onChange={e => updateEx(idx, "name", e.target.value)} placeholder="Exercise name (e.g. Squat)" style={{ marginBottom: 8 }} />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+
+          {/* Exercise name */}
+          <input value={ex.name} onChange={e => updateEx(idx, "name", e.target.value)} placeholder="Exercise name (e.g. Squat)" style={{ marginBottom: 10 }} />
+
+          {/* Sets + Start kg */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
             <div>
               <Label>Sets</Label>
-              <NumInput value={ex.sets} onChange={v => updateEx(idx, "sets", parseInt(v) || 1)} placeholder="3" />
-            </div>
-            <div>
-              <Label>Target Reps</Label>
-              <input value={ex.targetReps} onChange={e => updateEx(idx, "targetReps", e.target.value)} placeholder="8-10" />
+              <NumInput value={ex.sets} onChange={v => updateSetCount(idx, v)} placeholder="3" />
             </div>
             <div>
               <Label>Start kg</Label>
               <NumInput value={ex.startingWeight} onChange={v => updateEx(idx, "startingWeight", parseFloat(v) || 0)} placeholder="60" />
             </div>
+          </div>
+
+          {/* Per-set target reps */}
+          <Label>Target Reps Per Set</Label>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {(ex.setTargetReps || []).map((reps, si) => (
+              <div key={si} style={{ display: "grid", gridTemplateColumns: "32px 1fr", gap: 8, alignItems: "center" }}>
+                <div style={{ fontSize: 11, color: MUTED, textAlign: "center" }}>S{si + 1}</div>
+                <input
+                  value={reps}
+                  onChange={e => updateSetReps(idx, si, e.target.value)}
+                  placeholder="e.g. 5, 8-10, AMRAP"
+                  style={{ fontSize: 13 }}
+                />
+              </div>
+            ))}
           </div>
         </Card>
       ))}
