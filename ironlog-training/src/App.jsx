@@ -310,7 +310,7 @@ function SessionTab({ programme, profile, sessions, onSaveSession }) {
   // ── Active session screen ─────────────────────────────────────────────────
   return (
     <div style={{ padding: "16px 16px 100px", width: "100%" }} className="fade-in">
-      {/* Banner */>
+      {/* Banner */}
       <div style={{ background: ACCENT + "15", border: `1px solid ${ACCENT}33`, borderRadius: 10, padding: "10px 14px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, color: ACCENT, letterSpacing: 1 }}>{activeSession.templateName}</div>
