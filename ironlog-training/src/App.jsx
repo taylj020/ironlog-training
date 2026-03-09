@@ -19,7 +19,7 @@ const RED = "#f87171";
 
 const css = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body, #root { height: 100%; background: ${BG}; color: ${TEXT}; font-family: 'DM Mono', monospace; }
+  html, body, #root { height: 100%; width: 100%; background: ${BG}; color: ${TEXT}; font-family: 'DM Mono', monospace; overflow-x: hidden; }
   :root { --accent: ${ACCENT}; --bg: ${BG}; --surface: ${SURFACE}; --surface2: ${SURFACE2}; --border: ${BORDER}; --text: ${TEXT}; --muted: ${MUTED}; --green: ${GREEN}; --red: ${RED}; }
   input, textarea, select { font-family: 'DM Mono', monospace; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-size: 14px; outline: none; width: 100%; }
   input:focus, textarea:focus, select:focus { border-color: var(--accent); }
@@ -33,6 +33,7 @@ const css = `
   @keyframes spin { to { transform: rotate(360deg); } }
   .set-row input { text-align: center; }
   input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .tab-content { padding: 16px; padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: 100px; width: 100%; }
 `;
 
 // ── Storage helpers ───────────────────────────────────────────────────────────
@@ -147,7 +148,7 @@ const NumInput = ({ value, onChange, placeholder, style = {} }) => (
   <input
     type="text"
     inputMode="decimal"
-    value={value === 0 || value === "0" ? "" : (value ?? "")}
+    value={value === 0 || value === "0" || value === null || value === undefined ? "" : value}
     placeholder={placeholder}
     onChange={e => onChange(e.target.value)}
     style={{ textAlign: "center", fontSize: 15, padding: "8px 4px", minWidth: 0, ...style }}
@@ -194,7 +195,7 @@ function SessionTab({ programme, profile, sessions, onSaveSession }) {
     aiAdjusted: false,
     exercises: template.exercises.map((ex, idx) => {
       const ai = aiTargets?.find(a => a.exerciseIdx === idx);
-      const numSets = ai?.sets || ex.sets || 3;
+      const numSets = ai?.sets || parseInt(ex.sets) || 1;
       // per-set reps: use ai override, or per-set array, or fallback to single value
       const setTargetReps = ex.setTargetReps && ex.setTargetReps.length === numSets
         ? ex.setTargetReps
@@ -273,7 +274,7 @@ function SessionTab({ programme, profile, sessions, onSaveSession }) {
   // ── Pick session screen ───────────────────────────────────────────────────
   if (!activeSession) {
     return (
-      <div style={{ padding: 16, paddingBottom: 100 }} className="fade-in">
+      <div style={{ padding: "16px 16px 100px", width: "100%" }} className="fade-in">
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
           <span style={{ fontFamily: "'Bebas Neue'", fontSize: 36, color: ACCENT, letterSpacing: 2 }}>IRONLOG</span>
@@ -289,15 +290,17 @@ function SessionTab({ programme, profile, sessions, onSaveSession }) {
           </Card>
         ) : (
           programme.map(tmpl => (
-            <Card key={tmpl.id} style={{ marginBottom: 10, cursor: "pointer" }} onClick={() => !generating && startSession(tmpl)}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 1 }}>{tmpl.name}</div>
-                  <div style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>{tmpl.exercises.length} exercises</div>
-                </div>
-                <div style={{ color: ACCENT }}><Icon name="zap" size={18} color={ACCENT} /></div>
+            <div
+              key={tmpl.id}
+              onClick={() => !generating && startSession(tmpl)}
+              style={{ width: "100%", background: SURFACE, border: `1px solid ${BORDER}`, borderRadius: 12, padding: 16, marginBottom: 10, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", WebkitTapHighlightColor: "transparent", userSelect: "none" }}
+            >
+              <div>
+                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 1 }}>{tmpl.name}</div>
+                <div style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>{tmpl.exercises.length} exercises</div>
               </div>
-            </Card>
+              <div style={{ color: ACCENT, flexShrink: 0 }}><Icon name="zap" size={20} color={ACCENT} /></div>
+            </div>
           ))
         )}
       </div>
@@ -306,8 +309,8 @@ function SessionTab({ programme, profile, sessions, onSaveSession }) {
 
   // ── Active session screen ─────────────────────────────────────────────────
   return (
-    <div style={{ padding: 16, paddingBottom: 100 }} className="fade-in">
-      {/* Banner */}
+    <div style={{ padding: "16px 16px 100px", width: "100%" }} className="fade-in">
+      {/* Banner */>
       <div style={{ background: ACCENT + "15", border: `1px solid ${ACCENT}33`, borderRadius: 10, padding: "10px 14px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, color: ACCENT, letterSpacing: 1 }}>{activeSession.templateName}</div>
@@ -553,7 +556,7 @@ function WeightTab() {
   ];
 
   return (
-    <div style={{ padding: 16, paddingBottom: 100 }} className="fade-in">
+    <div style={{ padding: "16px 16px 100px", width: "100%", boxSizing: "border-box" }} className="fade-in">
       <div style={{ fontFamily: "'Bebas Neue'", fontSize: 32, letterSpacing: 2, marginBottom: 16 }}>WEIGHT LOG</div>
 
       {/* Input */}
@@ -646,7 +649,7 @@ function HistoryTab({ sessions, profile, onUpdateSession }) {
 
   if (sessions.length === 0) {
     return (
-      <div style={{ padding: 16, paddingBottom: 100 }} className="fade-in">
+      <div style={{ padding: "16px 16px 100px", width: "100%" }} className="fade-in">
         <div style={{ fontFamily: "'Bebas Neue'", fontSize: 32, letterSpacing: 2, marginBottom: 24 }}>HISTORY</div>
         <Card style={{ textAlign: "center", padding: 40 }}>
           <Icon name="history" size={32} color={MUTED} />
@@ -657,7 +660,7 @@ function HistoryTab({ sessions, profile, onUpdateSession }) {
   }
 
   return (
-    <div style={{ padding: 16, paddingBottom: 100 }} className="fade-in">
+    <div style={{ padding: "16px 16px 100px", width: "100%" }} className="fade-in">
       <div style={{ fontFamily: "'Bebas Neue'", fontSize: 32, letterSpacing: 2, marginBottom: 16 }}>HISTORY</div>
       {[...sessions].reverse().map(sess => {
         const isOpen = expanded === sess.id;
@@ -765,7 +768,7 @@ function ProfileTab({ profile, setProfile, programme, setProgramme }) {
   }
 
   return (
-    <div style={{ padding: 16, paddingBottom: 100 }} className="fade-in">
+    <div style={{ padding: "16px 16px 100px", width: "100%" }} className="fade-in">
       <div style={{ fontFamily: "'Bebas Neue'", fontSize: 32, letterSpacing: 2, marginBottom: 16 }}>PROFILE</div>
 
       {/* Goal */}
@@ -853,14 +856,15 @@ function SessionEditor({ sess, onSave, onCancel }) {
     }))
   );
 
-  const addEx = () => setExercises(ex => [...ex, { id: uid(), name: "", sets: 3, startingWeight: 0, setTargetReps: ["", "", ""] }]);
+  const addEx = () => setExercises(ex => [...ex, { id: uid(), name: "", sets: "", startingWeight: "", setTargetReps: [] }]);
 
   const updateEx = (idx, field, val) => setExercises(ex => ex.map((e, i) => i === idx ? { ...e, [field]: val } : e));
 
   const updateSetCount = (idx, newCount) => {
-    const n = Math.max(1, parseInt(newCount) || 1);
+    const n = newCount === "" ? "" : Math.max(1, parseInt(newCount) || 1);
     setExercises(ex => ex.map((e, i) => {
       if (i !== idx) return e;
+      if (n === "") return { ...e, sets: "", setTargetReps: [] };
       const current = e.setTargetReps || [];
       const updated = Array.from({ length: n }, (_, si) => current[si] ?? "");
       return { ...e, sets: n, setTargetReps: updated };
@@ -887,7 +891,7 @@ function SessionEditor({ sess, onSave, onCancel }) {
   };
 
   return (
-    <div style={{ padding: 16, paddingBottom: 100 }} className="fade-in">
+    <div style={{ padding: "16px 16px 100px", width: "100%" }} className="fade-in">
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
         <button onClick={onCancel} style={{ background: "none", border: "none", color: MUTED, cursor: "pointer", padding: 4 }}>
           <Icon name="x" size={20} />
@@ -923,11 +927,11 @@ function SessionEditor({ sess, onSave, onCancel }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
             <div>
               <Label>Sets</Label>
-              <NumInput value={ex.sets} onChange={v => updateSetCount(idx, v)} placeholder="3" />
+              <NumInput value={ex.sets} onChange={v => updateSetCount(idx, v)} placeholder="e.g. 4" />
             </div>
             <div>
               <Label>Start kg</Label>
-              <NumInput value={ex.startingWeight} onChange={v => updateEx(idx, "startingWeight", parseFloat(v) || 0)} placeholder="60" />
+              <NumInput value={ex.startingWeight} onChange={v => updateEx(idx, "startingWeight", v === "" ? "" : (parseFloat(v) || ""))} placeholder="60" />
             </div>
           </div>
 
@@ -992,9 +996,9 @@ export default function App() {
   return (
     <>
       <style>{css}</style>
-      <div style={{ height: "100%", display: "flex", flexDirection: "column", maxWidth: 480, margin: "0 auto", position: "relative" }}>
+      <div style={{ height: "100%", display: "flex", flexDirection: "column", width: "100%", position: "relative" }}>
         {/* Content */}
-        <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
+        <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", width: "100%" }}>
           {tab === 0 && <SessionTab programme={programme} profile={profile} sessions={sessions} onSaveSession={saveSession} />}
           {tab === 1 && <WeightTab />}
           {tab === 2 && <HistoryTab sessions={sessions} profile={profile} onUpdateSession={updateSession} />}
@@ -1002,7 +1006,7 @@ export default function App() {
         </div>
 
         {/* Bottom nav */}
-        <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: SURFACE, borderTop: `1px solid ${BORDER}`, display: "flex", zIndex: 50, paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, width: "100%", background: SURFACE, borderTop: `1px solid ${BORDER}`, display: "flex", zIndex: 50, paddingBottom: "env(safe-area-inset-bottom, 8px)" }}>
           {tabs.map((t, i) => (
             <button key={i} onClick={() => setTab(i)} style={{ flex: 1, padding: "12px 4px 10px", background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", color: tab === i ? ACCENT : MUTED, transition: "color 0.15s" }}>
               <Icon name={t.icon} size={20} color={tab === i ? ACCENT : MUTED} />
