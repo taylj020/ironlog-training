@@ -309,72 +309,174 @@ function SessionTab({ programme, profile, sessions, onSaveSession }) {
 
   // ── Active session screen ─────────────────────────────────────────────────
   return (
-    <div style={{ padding: "16px 16px 100px", width: "100%" }} className="fade-in">
-      {/* Banner */}
-      <div style={{ background: ACCENT + "15", border: `1px solid ${ACCENT}33`, borderRadius: 10, padding: "10px 14px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <div style={{ width: "100%", paddingBottom: 100 }} className="fade-in">
+
+      {/* Sticky header */}
+      <div style={{ position: "sticky", top: 0, zIndex: 20, background: BG, borderBottom: `1px solid ${BORDER}`, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <div style={{ fontFamily: "'Bebas Neue'", fontSize: 20, color: ACCENT, letterSpacing: 1 }}>{activeSession.templateName}</div>
-          <div style={{ fontSize: 11, color: MUTED }}>{completedSets}/{totalSets} sets done</div>
+          <div style={{ fontFamily: "'Bebas Neue'", fontSize: 24, color: ACCENT, letterSpacing: 1 }}>{activeSession.templateName}</div>
+          <div style={{ fontSize: 11, color: MUTED, marginTop: 1 }}>{completedSets}/{totalSets} sets completed</div>
         </div>
-        <Btn onClick={finishSession} variant="primary" size="sm">Finish</Btn>
+        <Btn onClick={finishSession} variant="primary" size="md">Finish</Btn>
       </div>
 
-      {activeSession.exercises.map((ex, exIdx) => {
-        const allDone = ex.logs.every(l => l.done);
-        return (
-          <Card key={exIdx} style={{ marginBottom: 12, borderColor: allDone ? GREEN + "55" : BORDER }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-              <div>
-                <div style={{ fontFamily: "'Bebas Neue'", fontSize: 18, letterSpacing: 0.5 }}>{ex.name}</div>
-                <div style={{ fontSize: 11, color: MUTED }}>
-                  {ex.sets} sets @ {ex.targetWeight}kg
-                  {ex.setTargetReps?.every(r => r === ex.setTargetReps[0]) && ex.setTargetReps[0]
-                    ? ` · ${ex.setTargetReps[0]} reps`
-                    : ""}
+      <div style={{ paddingTop: 8 }}>
+        {activeSession.exercises.map((ex, exIdx) => {
+          const allDone = ex.logs.length > 0 && ex.logs.every(l => l.done);
+          const prevSess = [...sessions].reverse().find(s => s.templateId === activeSession.templateId);
+          const prevEx = prevSess?.exercises?.[exIdx];
+
+          // Build target prescription string
+          const hasDiffReps = ex.setTargetReps?.some(r => r) && !ex.setTargetReps.every(r => r === ex.setTargetReps[0]);
+          const repsSummary = ex.setTargetReps?.some(r => r)
+            ? (hasDiffReps ? "varied reps" : ex.setTargetReps[0] + " reps")
+            : "";
+          const prescription = [
+            ex.sets ? `${ex.sets} sets` : "",
+            repsSummary,
+            ex.targetWeight ? `${ex.targetWeight}kg` : "",
+          ].filter(Boolean).join(" · ");
+
+          return (
+            <div key={exIdx} style={{ marginBottom: 0 }}>
+
+              {/* Exercise header */}
+              <div style={{ padding: "16px 16px 10px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontFamily: "'Bebas Neue'", fontSize: 22, letterSpacing: 0.5, color: allDone ? GREEN : TEXT, lineHeight: 1.1 }}>{ex.name}</span>
+                    {allDone && <Tag color={GREEN}>Done</Tag>}
+                    {ex.aiNote && <Tag color={ACCENT}>AI</Tag>}
+                  </div>
+                  {prescription ? (
+                    <div style={{ fontSize: 12, color: ACCENT, marginTop: 4, letterSpacing: 0.3 }}>{prescription}</div>
+                  ) : null}
+                  {/* Per-set reps breakdown if varied */}
+                  {hasDiffReps && (
+                    <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                      {ex.setTargetReps.map((r, i) => (
+                        <span key={i} style={{ fontSize: 10, color: MUTED, background: SURFACE2, border: `1px solid ${BORDER}`, borderRadius: 4, padding: "2px 6px" }}>
+                          S{i+1}: {r || "—"}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {ex.aiNote && <div style={{ fontSize: 10, color: ACCENT, marginTop: 2 }}>⚡ {ex.aiNote}</div>}
+                <button
+                  onClick={() => openTweak(exIdx)}
+                  style={{ background: ACCENT + "15", border: `1px solid ${ACCENT}33`, borderRadius: 8, padding: "6px 10px", color: ACCENT, fontSize: 11, fontFamily: "'DM Mono'", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, flexShrink: 0, marginLeft: 10 }}
+                >
+                  <Icon name="zap" size={12} color={ACCENT} /> Tweak
+                </button>
               </div>
-              {allDone && <Icon name="check" color={GREEN} />}
-            </div>
 
-            {/* Set header */}
-            <div style={{ display: "grid", gridTemplateColumns: "20px 1fr 1fr 1fr 32px", gap: 6, marginBottom: 6, alignItems: "center" }}>
-              {["#", "KG", "REPS", "RPE", "✓"].map(h => (
-                <div key={h} style={{ fontSize: 9, color: MUTED, textAlign: "center", letterSpacing: 1 }}>{h}</div>
-              ))}
-            </div>
+              {/* Column headers */}
+              <div style={{ display: "grid", gridTemplateColumns: "40px 1fr 72px 72px 48px", gap: 8, padding: "6px 16px", borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}`, background: SURFACE }}>
+                <div style={{ fontSize: 9, color: MUTED, textAlign: "center", letterSpacing: 1.5 }}>SET</div>
+                <div style={{ fontSize: 9, color: MUTED, textAlign: "left", letterSpacing: 1.5, paddingLeft: 4 }}>PREVIOUS</div>
+                <div style={{ fontSize: 9, color: MUTED, textAlign: "center", letterSpacing: 1.5 }}>KG</div>
+                <div style={{ fontSize: 9, color: MUTED, textAlign: "center", letterSpacing: 1.5 }}>REPS</div>
+                <div style={{ fontSize: 9, color: MUTED, textAlign: "center", letterSpacing: 1.5 }}>✓</div>
+              </div>
 
-            {ex.logs.map((log, setIdx) => {
-              const targetReps = ex.setTargetReps?.[setIdx] || "";
-              return (
-                <div key={setIdx} style={{ display: "grid", gridTemplateColumns: "20px 1fr 1fr 1fr 32px", gap: 6, marginBottom: 6, alignItems: "center" }}>
-                  <div style={{ fontSize: 11, color: log.done ? ACCENT : MUTED, textAlign: "center", fontWeight: 500 }}>{setIdx + 1}</div>
-                  <NumInput value={log.kg} onChange={v => updateLog(exIdx, setIdx, "kg", v)} placeholder={String(ex.targetWeight || "")} />
-                  <input
-                    inputMode="text"
-                    value={log.reps}
-                    placeholder={targetReps || "—"}
-                    onChange={e => updateLog(exIdx, setIdx, "reps", e.target.value)}
-                    style={{ textAlign: "center", fontSize: 13, padding: "8px 4px", minWidth: 0, background: SURFACE2, color: TEXT, border: `1px solid ${BORDER}`, borderRadius: 6, outline: "none", width: "100%", fontFamily: "'DM Mono', monospace" }}
-                  />
-                  <NumInput value={log.rpe} onChange={v => updateLog(exIdx, setIdx, "rpe", v)} placeholder="7" />
-                  <button
-                    onClick={() => toggleSet(exIdx, setIdx)}
-                    style={{ width: 32, height: 32, borderRadius: 6, border: `2px solid ${log.done ? GREEN : BORDER}`, background: log.done ? GREEN + "22" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+              {/* Set rows */}
+              {ex.logs.map((log, setIdx) => {
+                const targetReps = ex.setTargetReps?.[setIdx] || "";
+                const prevLog = prevEx?.logs?.[setIdx];
+                const prevText = prevLog?.kg && prevLog?.reps
+                  ? `${prevLog.kg} × ${prevLog.reps}`
+                  : "—";
+                const isDone = log.done;
+
+                return (
+                  <div
+                    key={setIdx}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "40px 1fr 72px 72px 48px",
+                      gap: 8,
+                      padding: "10px 16px",
+                      alignItems: "center",
+                      background: isDone ? GREEN + "12" : "transparent",
+                      borderBottom: `1px solid ${BORDER}`,
+                      transition: "background 0.2s",
+                    }}
                   >
-                    {log.done && <Icon name="check" size={14} color={GREEN} />}
-                  </button>
-                </div>
-              );
-            })}
+                    {/* Set number badge */}
+                    <div style={{
+                      width: 32, height: 32, borderRadius: 8,
+                      background: isDone ? GREEN + "30" : SURFACE2,
+                      border: `1px solid ${isDone ? GREEN + "55" : BORDER}`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 13, fontWeight: 700,
+                      color: isDone ? GREEN : MUTED,
+                      fontFamily: "'DM Mono', monospace",
+                    }}>{setIdx + 1}</div>
 
-            <Divider />
-            <Btn onClick={() => openTweak(exIdx)} variant="ghost" size="sm" style={{ width: "100%", color: ACCENT, borderColor: ACCENT + "44", fontSize: 11 }}>
-              <Icon name="zap" size={13} color={ACCENT} /> Missed reps — adjust next sets
-            </Btn>
-          </Card>
-        );
-      })}
+                    {/* Previous */}
+                    <div style={{ fontSize: 12, color: isDone ? GREEN + "88" : MUTED, paddingLeft: 4, letterSpacing: 0.3 }}>{prevText}</div>
+
+                    {/* KG input */}
+                    <input
+                      inputMode="decimal"
+                      value={log.kg === 0 || log.kg === "0" ? "" : (log.kg ?? "")}
+                      placeholder={ex.targetWeight ? String(ex.targetWeight) : "—"}
+                      onChange={e => updateLog(exIdx, setIdx, "kg", e.target.value)}
+                      style={{
+                        textAlign: "center", fontSize: 16, fontWeight: 700,
+                        padding: "10px 2px", width: "100%", minWidth: 0,
+                        background: isDone ? GREEN + "18" : SURFACE2,
+                        color: isDone ? GREEN : TEXT,
+                        border: `1px solid ${isDone ? GREEN + "55" : BORDER}`,
+                        borderRadius: 8, outline: "none",
+                        fontFamily: "'DM Mono', monospace",
+                        transition: "all 0.15s",
+                      }}
+                    />
+
+                    {/* Reps input */}
+                    <input
+                      inputMode="text"
+                      value={log.reps ?? ""}
+                      placeholder={targetReps || "—"}
+                      onChange={e => updateLog(exIdx, setIdx, "reps", e.target.value)}
+                      style={{
+                        textAlign: "center", fontSize: 16, fontWeight: 700,
+                        padding: "10px 2px", width: "100%", minWidth: 0,
+                        background: isDone ? GREEN + "18" : SURFACE2,
+                        color: isDone ? GREEN : TEXT,
+                        border: `1px solid ${isDone ? GREEN + "55" : BORDER}`,
+                        borderRadius: 8, outline: "none",
+                        fontFamily: "'DM Mono', monospace",
+                        transition: "all 0.15s",
+                      }}
+                    />
+
+                    {/* Tick button */}
+                    <button
+                      onClick={() => toggleSet(exIdx, setIdx)}
+                      style={{
+                        width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                        border: `2px solid ${isDone ? GREEN : BORDER}`,
+                        background: isDone ? GREEN : "transparent",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        cursor: "pointer", transition: "all 0.15s",
+                        WebkitTapHighlightColor: "transparent",
+                        marginLeft: "auto",
+                      }}
+                    >
+                      <Icon name="check" size={18} color={isDone ? "#000" : MUTED} />
+                    </button>
+                  </div>
+                );
+              })}
+
+              {/* Exercise divider */}
+              <div style={{ height: 10, background: SURFACE2, borderTop: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}` }} />
+            </div>
+          );
+        })}
+      </div>
 
       {/* AI Tweak overlay */}
       {tweak && (
